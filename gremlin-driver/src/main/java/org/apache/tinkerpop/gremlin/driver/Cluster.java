@@ -195,6 +195,11 @@ public final class Cluster {
         if (settings.protocol != null)
             builder.protocol(settings.protocol);
 
+        if(settings.locationAwareRouterSettings != null && !settings.locationAwareRouterSettings.memcachedHosts.isEmpty()) {
+
+        }
+
+
         // the first address was added above in the constructor, so skip it if there are more
         if (addresses.size() > 1)
             addresses.stream().skip(1).forEach(builder::addContactPoint);
@@ -493,6 +498,11 @@ public final class Cluster {
         private SslContext sslContext = null;
         private LoadBalancingStrategy loadBalancingStrategy = new LoadBalancingStrategy.RoundRobin();
         private AuthProperties authProps = new AuthProperties();
+        private boolean enableIntelligentQueryRouting = false;
+        private List<String> memcachedHosts = null;
+        private Integer memcachedPort = null;
+        private String memcachedLookupProperty = null;
+        private String memcachedInstanceName = null;
 
         private Builder() {
             // empty to prevent direct instantiation
@@ -810,6 +820,41 @@ public final class Cluster {
             return addresses.stream().map(addy -> new InetSocketAddress(addy, port)).collect(Collectors.toList());
         }
 
+        public Builder isEnableIntelligentQueryRouting(final boolean enableIntelligentQueryRouting) {
+            this.enableIntelligentQueryRouting = enableIntelligentQueryRouting;
+            return this;
+        }
+
+        public Builder addMemcachedHost(final String address) {
+            if(this.memcachedHosts == null) {
+                this.memcachedHosts = new ArrayList<>();
+            }
+            this.memcachedHosts.add(address);
+            return this;
+        }
+
+        public Builder addMemchedHosts (final String... addresses) {
+            for(String address : addresses) {
+                addMemcachedHost(address);
+            }
+            return this;
+        }
+
+        public Builder memcachedPort(final int port) {
+            this.memcachedPort = port;
+            return this;
+        }
+
+        public Builder memcachedLookupProperty(final String property) {
+            this.memcachedLookupProperty = property;
+            return this;
+        }
+
+        public Builder memcachedInstanceName(final String name) {
+            this.memcachedInstanceName = name;
+            return this;
+        }
+
         public Cluster create() {
             if (addresses.size() == 0) addContactPoint("localhost");
             return new Cluster(this);
@@ -859,7 +904,6 @@ public final class Cluster {
         private Manager(final Builder builder) {
             validateBuilder(builder);
 
-            this.loadBalancingStrategy = builder.loadBalancingStrategy;
             this.authProps = builder.authProps;
             this.contactPoints = builder.getContactPoints();
 
@@ -893,6 +937,14 @@ public final class Cluster {
             this.serializer = builder.serializer;
             this.executor = Executors.newScheduledThreadPool(builder.workerPoolSize,
                     new BasicThreadFactory.Builder().namingPattern("gremlin-driver-worker-%d").build());
+
+            if(builder.enableIntelligentQueryRouting) {
+                String[] servers = builder.memcachedHosts.stream().map(l -> l + ":" + builder.memcachedPort).toArray(String[]::new);
+                MemcachedPlacementHistory<String> memcachedPlacementHistory = new MemcachedPlacementHistory<String>(builder.memcachedInstanceName, servers);
+                this.loadBalancingStrategy = new LocationAwareLoadBalancingStrategy(builder.memcachedLookupProperty, memcachedPlacementHistory);
+            } else {
+                this.loadBalancingStrategy = builder.loadBalancingStrategy;
+            }
         }
 
         private void validateBuilder(final Builder builder) {

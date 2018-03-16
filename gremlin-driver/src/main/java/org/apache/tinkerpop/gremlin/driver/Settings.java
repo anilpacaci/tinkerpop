@@ -235,7 +235,13 @@ final class Settings {
 
             if (placementHistoryConf.containsKey("lookupProperty"))
                 larSettings.lookupProperty = placementHistoryConf.getString("lookupProperty");
-            
+
+            if (placementHistoryConf.containsKey("instanceName"))
+                larSettings.instanceName = placementHistoryConf.getString("instanceName");
+
+            if(placementHistoryConf.containsKey("partitionHostMapping"))
+                larSettings.partitionHostMappings = pla
+
             settings.locationAwareRouterSettings = larSettings;
         }
 
@@ -363,6 +369,16 @@ final class Settings {
          * Name of the property to be looked in query paramaters
          */
         public String lookupProperty = "iid";
+
+        /**
+         * Name of the memcached instance that stores vertex-partition lookup table
+         */
+        public String instanceName = "partition-lookup";
+
+        /**
+         * Mapping from partition number to the host address given, has to configured by the user, otherwise sorted in ascending order
+         */
+        public Map<String, String> partitionHostMappings = new HashMap<>();
     }
 
     public static class SerializerSettings {
