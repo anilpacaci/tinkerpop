@@ -64,6 +64,11 @@ final class Settings {
     public ConnectionPoolSettings connectionPool = new ConnectionPoolSettings();
 
     /**
+     * Settings for LocationAware query router
+     */
+    public LocationAwareRouterSettings locationAwareRouterSettings = new LocationAwareRouterSettings();
+
+    /**
      * The size of the thread pool defaulted to the number of available processors.
      */
     public int nioPoolSize = Runtime.getRuntime().availableProcessors();
@@ -218,6 +223,23 @@ final class Settings {
             settings.connectionPool = cpSettings;
         }
 
+        final Configuration placementHistoryConf = conf.subset("placementHistory");
+        if (IteratorUtils.count(placementHistoryConf.getKeys()) > 0) {
+            final LocationAwareRouterSettings larSettings = new LocationAwareRouterSettings();
+
+            if (placementHistoryConf.containsKey("hosts"))
+                larSettings.memcachedHosts = placementHistoryConf.getList("hosts").stream().map(Object::toString).collect(Collectors.toList());
+
+            if (placementHistoryConf.containsKey("port"))
+                larSettings.memcachedPort = placementHistoryConf.getInt("port");
+
+            if (placementHistoryConf.containsKey("lookupProperty"))
+                larSettings.lookupProperty = placementHistoryConf.getString("lookupProperty");
+            
+            settings.locationAwareRouterSettings = larSettings;
+        }
+
+
         return settings;
     }
 
@@ -326,6 +348,21 @@ final class Settings {
          * {@link org.apache.tinkerpop.gremlin.driver.Channelizer.WebSocketChannelizer}.
          */
         public String channelizer = Channelizer.WebSocketChannelizer.class.getName();
+    }
+
+    static class LocationAwareRouterSettings {
+        /**
+         * Placement History records mappings between vertexId and partition
+         */
+        public static String MEMCACHED_PLACEMENT_HISTORY = "memcached";
+
+        public List<String> memcachedHosts = new ArrayList<>();
+        public int memcachedPort = 11211;
+
+        /**
+         * Name of the property to be looked in query paramaters
+         */
+        public String lookupProperty = "iid";
     }
 
     public static class SerializerSettings {
