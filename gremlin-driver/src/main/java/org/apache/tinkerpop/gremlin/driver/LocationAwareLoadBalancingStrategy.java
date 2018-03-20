@@ -19,6 +19,8 @@
 package org.apache.tinkerpop.gremlin.driver;
 
 import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -28,6 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Created by apacaci on 3/16/18.
  */
 public class LocationAwareLoadBalancingStrategy implements LoadBalancingStrategy {
+    private static final Logger logger = LoggerFactory.getLogger(LocationAwareLoadBalancingStrategy.class);
+
+
     private final CopyOnWriteArrayList<Host> availableHosts = new CopyOnWriteArrayList<>();
     private final AtomicInteger index = new AtomicInteger();
 
@@ -70,6 +75,7 @@ public class LocationAwareLoadBalancingStrategy implements LoadBalancingStrategy
                 // we can find partition baed on lookup property, so return that host
                 Host selectedHost = partitionHostMappings.get(partition);
                 hosts.add(selectedHost);
+                logger.warn("Partittion for {} is {}", lookupParamater, partition);
             }
         }
 

@@ -950,8 +950,10 @@ public final class Cluster {
                 String[] servers = builder.memcachedHosts.stream().map(l -> l + ":" + builder.memcachedPort).toArray(String[]::new);
                 MemcachedPlacementHistory<String> memcachedPlacementHistory = new MemcachedPlacementHistory<String>(builder.memcachedInstanceName, servers);
                 this.loadBalancingStrategy = new LocationAwareLoadBalancingStrategy(builder.memcachedLookupProperty, memcachedPlacementHistory, builder.partitionHostMappings);
+                logger.info("LocationAwareLoadBalancingStrategy is selected");
             } else {
                 this.loadBalancingStrategy = builder.loadBalancingStrategy;
+                logger.info("RoundRobinLoadBalancingStrategy is selected");
             }
         }
 
