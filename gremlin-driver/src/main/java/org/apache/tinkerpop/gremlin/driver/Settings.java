@@ -66,7 +66,7 @@ final class Settings {
     /**
      * Settings for LocationAware query router
      */
-    public LocationAwareRouterSettings locationAwareRouterSettings = new LocationAwareRouterSettings();
+    public PlacementHistorySettings placementHistory = new PlacementHistorySettings();
 
     /**
      * The size of the thread pool defaulted to the number of available processors.
@@ -225,13 +225,13 @@ final class Settings {
 
         final Configuration placementHistoryConf = conf.subset("placementHistory");
         if (IteratorUtils.count(placementHistoryConf.getKeys()) > 0) {
-            final LocationAwareRouterSettings larSettings = new LocationAwareRouterSettings();
+            final PlacementHistorySettings larSettings = new PlacementHistorySettings();
 
             if (placementHistoryConf.containsKey("hosts"))
-                larSettings.memcachedHosts = placementHistoryConf.getList("hosts").stream().map(Object::toString).collect(Collectors.toList());
+                larSettings.hosts = placementHistoryConf.getList("hosts").stream().map(Object::toString).collect(Collectors.toList());
 
             if (placementHistoryConf.containsKey("port"))
-                larSettings.memcachedPort = placementHistoryConf.getInt("port");
+                larSettings.port = placementHistoryConf.getInt("port");
 
             if (placementHistoryConf.containsKey("lookupProperty"))
                 larSettings.lookupProperty = placementHistoryConf.getString("lookupProperty");
@@ -239,10 +239,14 @@ final class Settings {
             if (placementHistoryConf.containsKey("instanceName"))
                 larSettings.instanceName = placementHistoryConf.getString("instanceName");
 
-            if(placementHistoryConf.containsKey("partitionHostMapping"))
-                larSettings.partitionHostMappings = pla
+            if(placementHistoryConf.containsKey("partitionHostMapping")) {
+                Configuration partitionHostMapping = placementHistoryConf.subset("partitionHostMapping");
+                for(int i = 0 ; i < settings.hosts.size() ; i++) {
+                    larSettings.partitionHostMapping.put(i, partitionHostMapping.getString(Integer.toString(i)));
+                }
+            }
 
-            settings.locationAwareRouterSettings = larSettings;
+            settings.placementHistory = larSettings;
         }
 
 
@@ -356,14 +360,14 @@ final class Settings {
         public String channelizer = Channelizer.WebSocketChannelizer.class.getName();
     }
 
-    static class LocationAwareRouterSettings {
+    static class PlacementHistorySettings {
         /**
          * Placement History records mappings between vertexId and partition
          */
         public static String MEMCACHED_PLACEMENT_HISTORY = "memcached";
 
-        public List<String> memcachedHosts = new ArrayList<>();
-        public int memcachedPort = 11211;
+        public List<String> hosts = new ArrayList<>();
+        public int port = 11211;
 
         /**
          * Name of the property to be looked in query paramaters
@@ -378,7 +382,7 @@ final class Settings {
         /**
          * Mapping from partition number to the host address given, has to configured by the user, otherwise sorted in ascending order
          */
-        public Map<String, String> partitionHostMappings = new HashMap<>();
+        public Map<Integer, String> partitionHostMapping = new HashMap<>();
     }
 
     public static class SerializerSettings {

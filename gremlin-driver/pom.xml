@@ -95,12 +95,12 @@ limitations under the License.
             <groupId>com.whalin</groupId>
             <artifactId>Memcached-Java-Client</artifactId>
             <version>3.0.2</version>
-            <exclusions>
-                <exclusion>  <!-- declare the exclusion here -->
+            <!-- <exclusions>
+                <exclusion>
                     <groupId>commons-pool</groupId>
                     <artifactId>commons-pool</artifactId>
                 </exclusion>
-            </exclusions>
+            </exclusions> -->
         </dependency>
     </dependencies>
 

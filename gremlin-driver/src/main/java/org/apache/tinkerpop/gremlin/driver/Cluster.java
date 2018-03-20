@@ -42,11 +42,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -195,8 +191,14 @@ public final class Cluster {
         if (settings.protocol != null)
             builder.protocol(settings.protocol);
 
-        if(settings.locationAwareRouterSettings != null && !settings.locationAwareRouterSettings.memcachedHosts.isEmpty()) {
-
+        if(settings.placementHistory != null && !settings.placementHistory.hosts.isEmpty()) {
+            // populate builder settings
+            builder.isEnableIntelligentQueryRouting(true);
+            builder.memcachedInstanceName(settings.placementHistory.instanceName);
+            builder.memcachedLookupProperty(settings.placementHistory.lookupProperty);
+            builder.addMemchedHosts(settings.placementHistory.hosts.toArray(new String[]{}));
+            builder.memcachedPort(settings.placementHistory.port);
+            settings.placementHistory.partitionHostMapping.entrySet().stream().forEach(pair -> { builder.addPartitionHostMapping(pair.getKey(), pair.getValue()); });
         }
 
 
@@ -503,6 +505,7 @@ public final class Cluster {
         private Integer memcachedPort = null;
         private String memcachedLookupProperty = null;
         private String memcachedInstanceName = null;
+        private Map<String, Integer> partitionHostMappings = new HashMap<>();
 
         private Builder() {
             // empty to prevent direct instantiation
@@ -855,6 +858,11 @@ public final class Cluster {
             return this;
         }
 
+        public Builder addPartitionHostMapping(Integer partition, String host) {
+            this.partitionHostMappings.put(host, partition);
+            return this;
+        }
+
         public Cluster create() {
             if (addresses.size() == 0) addContactPoint("localhost");
             return new Cluster(this);
@@ -941,7 +949,7 @@ public final class Cluster {
             if(builder.enableIntelligentQueryRouting) {
                 String[] servers = builder.memcachedHosts.stream().map(l -> l + ":" + builder.memcachedPort).toArray(String[]::new);
                 MemcachedPlacementHistory<String> memcachedPlacementHistory = new MemcachedPlacementHistory<String>(builder.memcachedInstanceName, servers);
-                this.loadBalancingStrategy = new LocationAwareLoadBalancingStrategy(builder.memcachedLookupProperty, memcachedPlacementHistory);
+                this.loadBalancingStrategy = new LocationAwareLoadBalancingStrategy(builder.memcachedLookupProperty, memcachedPlacementHistory, builder.partitionHostMappings);
             } else {
                 this.loadBalancingStrategy = builder.loadBalancingStrategy;
             }

@@ -2,43 +2,98 @@ package org.apache.tinkerpop.gremlin.driver;
 
 import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
 
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created by apacaci on 3/16/18.
  */
 public class LocationAwareLoadBalancingStrategy implements LoadBalancingStrategy {
     private final CopyOnWriteArrayList<Host> availableHosts = new CopyOnWriteArrayList<>();
+    private final AtomicInteger index = new AtomicInteger();
 
     private final String lookupProperty;
     private final MemcachedPlacementHistory<String> placementHistory;
+    private final Map<Integer, Host> partitionHostMappings;
+    private final Map<String, Integer> urlPartitionMappings;
 
 
-    public LocationAwareLoadBalancingStrategy(final String lookupProperty, final MemcachedPlacementHistory<String> placementHistory) {
+    public LocationAwareLoadBalancingStrategy(final String lookupProperty, final MemcachedPlacementHistory<String> placementHistory, final Map<String, Integer> urlPartitionMappings) {
         this.lookupProperty = lookupProperty;
         this.placementHistory = placementHistory;
+        this.urlPartitionMappings = urlPartitionMappings;
+        this.partitionHostMappings = new HashMap<>();
     }
 
     @Override
     public void initialize(Cluster cluster, Collection<Host> hosts) {
         this.availableHosts.addAll(hosts);
+        this.index.set(new Random().nextInt(Math.max(hosts.size(), 1)));
+
+        hosts.stream().forEach(host -> {
+            Integer partition = urlPartitionMappings.get(host.getHostUri().getHost());
+            partitionHostMappings.put(partition, host);
+        });
     }
 
     @Override
     public Iterator<Host> select(RequestMessage msg) {
-        return null;
+        final List<Host> hosts = new ArrayList<>();
+
+        // get the value of lookup property from argument bindings
+        Map<String, String> bindings = (Map<String, String>) msg.getArgs().get("bindings");
+        Object lookupParamater = bindings.get(lookupProperty);
+
+        if(lookupParamater != null) {
+            // lookup parameter is not null, so check partition mapping to retrieve correct partition id for this parameter
+            Integer partition = placementHistory.getPartition(lookupParamater.toString());
+            if(partition != null) {
+                // we can find partition baed on lookup property, so return that host
+                Host selectedHost = partitionHostMappings.get(partition);
+                hosts.add(selectedHost);
+            }
+        }
+
+        // regardless of we find partition mapping, add all available hosts based on round robin logic
+        final int startIndex = index.getAndIncrement();
+        for(int i = 0 ; i < availableHosts.size(); i++) {
+            // always add starting from index, to implement round robin logic
+            hosts.add(availableHosts.get( (startIndex + i) % availableHosts.size() ));
+        }
+
+        return new Iterator<Host>() {
+
+            private int currentIndex = 0;
+            private int remainings = hosts.size();
+
+            @Override
+            public boolean hasNext() {
+                return remainings > 0;
+            }
+
+            @Override
+            public Host next() {
+                //decrement remainings
+                remainings--;
+                // return the current index, then increment the pointer
+                return hosts.get(currentIndex++);
+            }
+        };
     }
 
     @Override
     public void onAvailable(final Host host) {
         this.availableHosts.addIfAbsent(host);
+        Integer partition = urlPartitionMappings.get(host.getHostUri().getHost());
+        this.partitionHostMappings.put(partition, host);
     }
 
     @Override
     public void onUnavailable(final Host host) {
         this.availableHosts.remove(host);
+        Integer partition = urlPartitionMappings.get(host.getHostUri().getHost());
+        this.partitionHostMappings.remove(partition);
     }
 
     @Override
